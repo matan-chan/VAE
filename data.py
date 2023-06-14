@@ -27,24 +27,25 @@ def read_img(image_url):
     return image
 
 
-def preprocess_image(data):
-    image_url, description = data
+def preprocess_image(image_url):
+
     image = tf.py_function(read_img, [image_url], tf.float64)
     if len(tf.shape(image)) != 3:
         image = image[..., np.newaxis]
+        image = tf.image.grayscale_to_rgb(image)
     height, width, depth = tf.shape(image)
     crop_size = tf.minimum(height, width)
     image = tf.image.crop_to_bounding_box(image, (height - crop_size) // 2, (width - crop_size) // 2, crop_size,
                                           crop_size)
     image = tf.image.resize(image, size=[img_size, img_size], antialias=True)
-    return  np.array(tf.clip_by_value(image / 255.0, 0.0, 1.0))
+    return  tf.clip_by_value(image / 255.0, 0.0, 1.0)
 
 
 def extract_relevant_data_from_files():
     only_files = ['data/' + file for file in listdir('data/')]
     engine = ['pyarrow'] * len(only_files)
     data_frame = pd.concat(map(pd.read_parquet, only_files, engine))
-    urls_and_captions = np.stack((data_frame['url'], data_frame['caption']), axis=-1)
+    urls_and_captions = np.array((data_frame['url']))
     return urls_and_captions
 
 
@@ -54,3 +55,5 @@ def prepare_dataset():
         shuffle(10 * batch_size).repeat(dataset_repetitions).batch(batch_size, drop_remainder=True).prefetch(
         buffer_size=tf.data.AUTOTUNE)  # cache().
     return map(lambda x: np.array(list(map(preprocess_image, x))), list_ds)
+
+

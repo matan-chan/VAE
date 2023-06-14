@@ -32,12 +32,8 @@ class VAE():
     def loss_fn(recon_x, x, mu, logvar):
         return vae_loss(recon_x, x, mu, logvar)
 
-    def train_step(self, batch):
-
-        images = np.stack(batch)
+    def train_step(self, images):
         with tf.GradientTape() as tape:
-
-
             latent_mu, latent_logvar = self.encoder(images, training=False)
             latent = latent_sample(latent_mu, latent_logvar)
             x_recon = self.decoder(latent, training=False)
@@ -50,9 +46,6 @@ class VAE():
     def train(self):
         start_time = time.time()
         dataset = prepare_dataset()
-
-        # self.normalizer.adapt(np.array([next(dataset) for _ in range(250)]))  # 250
-
         epoch_start = 0
         print('starting at:', epoch_start)
 

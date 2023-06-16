@@ -1,9 +1,11 @@
-from config import img_size
+import cv2
+
+from config import img_size, dataset_repetitions, batch_size
 from keras.optimizers import Adam
 from keras.callbacks import TensorBoard
-from data import prepare_dataset, preprocess_image
+from data import prepare_dataset, preprocess_image, get_dataframe
 import matplotlib.pyplot as plt
-
+from PIL import Image
 from loss import vae_loss
 from model import encoder, decoder, latent_sample
 from config import save_every
@@ -16,7 +18,7 @@ from tensorflow.python.client import device_lib
 
 # print(device_lib.list_local_devices())
 
-file_count = sum(len(files) for _, _, files in os.walk(r'data'))
+file_count = len(get_dataframe())
 
 
 class VAE():
@@ -41,47 +43,57 @@ class VAE():
 
         gradients = tape.gradient(loss, self.vae.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.vae.trainable_weights))
-        return loss
+        return loss, x_recon
+
+    # def plot_images(self,butch, epoch=None, num_rows=2, num_cols=6):
+    #     # plot random generated images for visual evaluation of generation quality
+    #     generated_images = self.encoder(butch)
+    #     generated_images = self.decoder(butch)
+    #
+    #     plt.figure(figsize=(num_cols * 2.0, num_rows * 2.0))
+    #     for row in range(num_rows):
+    #         for col in range(num_cols):
+    #             index = row * num_cols + col
+    #             plt.subplot(num_rows, num_cols, index + 1)
+    #             plt.imshow(generated_images[index])
+    #             plt.axis("off")
+    #     plt.tight_layout()
+    #     plt.savefig(f"output_images/generated_plot_epoch-{epoch}.png")
+
+    def convert_to_h5(self):
+        checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, encoder=self.encoder, decoder=self.decoder,
+                                         vae=self.vae)
+        manager = tf.train.CheckpointManager(checkpoint, directory='models/', max_to_keep=3)
+        self.encoder.save('models/encoder_model.h5')
+        self.decoder.save('models/decoder_model.h5')
+        self.vae.save('models/vae_model.h5')
 
     def train(self):
-        start_time = time.time()
-        dataset = prepare_dataset()
-        epoch_start = 0
-        print('starting at:', epoch_start)
+        dataset = prepare_dataset(True)
 
-        # bar = tf.keras.utils.Progbar(file_count * dataset_repetitions / batch_size - 1)
+        checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, encoder=self.encoder, decoder=self.decoder,
+                                         vae=self.vae)
+        manager = tf.train.CheckpointManager(checkpoint, directory='models/', max_to_keep=3)
+
+        epoch_start = int(
+            manager.latest_checkpoint.split(sep='ckpt-')[
+                -1]) * save_every if manager.latest_checkpoint else 1
+        print('starting at:', epoch_start)
+        checkpoint.restore(manager.latest_checkpoint)
+        bar = tf.keras.utils.Progbar(file_count * dataset_repetitions / batch_size - 1)
         for epoch, batch in enumerate(dataset):
-            self.train_step(batch)
-            # if (epoch + epoch_start) % save_every == 0:
-            #     with open("logs.txt", "a") as file_object:
-            #         file_object.write(
-            #             "\n" + f'epoch: {epoch + epoch_start} time: {time.time() - start_time} loss: {loss} ')
-            # self.plot_images(epoch + epoch_start)
+            loss, x_recon = self.train_step(batch)
+            loss = np.array(loss)
+
+            bar.update(epoch + epoch_start, values=[("loss", loss)])
+            if (epoch + epoch_start) % save_every == 0:
+                # self.plot_images(epoch + epoch_start)
+
+                im_rgb = cv2.cvtColor(x_recon, cv2.COLOR_BGR2RGB)
+                cv2.imwrite(f'output_images/{epoch}.jpg', im_rgb)
+
+                manager.save()
 
 
 g = VAE()
 g.train()
-
-
-class Diffusion:
-
-    def generate(self, num_images, diffusion_steps):
-        # noise -> images -> denormalized images
-        initial_noise = tf.random.normal(shape=(num_images, img_size, img_size, 3))
-        generated_images = self.reverse_diffusion(initial_noise, diffusion_steps)
-        generated_images = self.denormalize(generated_images)
-        return generated_images
-
-    def plot_images(self, epoch=None, logs=None, num_rows=3, num_cols=6):
-        # plot random generated images for visual evaluation of generation quality
-        generated_images = self.generate(num_rows * num_cols, plot_diffusion_steps)
-
-        plt.figure(figsize=(num_cols * 2.0, num_rows * 2.0))
-        for row in range(num_rows):
-            for col in range(num_cols):
-                index = row * num_cols + col
-                plt.subplot(num_rows, num_cols, index + 1)
-                plt.imshow(generated_images[index])
-                plt.axis("off")
-        plt.tight_layout()
-        plt.savefig(f"output_images/generated_plot_epoch-{epoch}.png")

@@ -36,10 +36,14 @@ def get_image(image_url):
 
 
 def read_image_from_disk(data):
-    img = tf.image.decode_jpeg(tf.io.read_file(data))
-    img = tf.cast(img, tf.float32)
-    img = tf.clip_by_value(img / 255.0, 0.0, 1.0)
-    return img
+    try:
+        img = tf.image.decode_jpeg(tf.io.read_file(data))
+        img = tf.cast(img, tf.float32)
+        img = tf.clip_by_value(img / 255.0, 0.0, 1.0)
+        return img
+    except:
+        img = np.zeros((img_size, img_size, 3))
+        return tf.cast(img, tf.float32)
 
 
 def preprocess_image(image, clip=True):
@@ -72,7 +76,7 @@ def extract_relevant_data_from_files():
     return data_frame['url']
 
 
-def download_images(start_in_batch=229080, run_for=10, start_name=0):
+def download_images(start_in_batch=778396, run_for=10, start_name=0):
     urls = extract_relevant_data_from_files()
 
     for i, url in enumerate(urls):
@@ -104,4 +108,5 @@ def prepare_dataset(downloaded=False):
             buffer_size=tf.data.AUTOTUNE)  # cache().
         return map(lambda x: np.array(list(map(get_image, x))), list_ds)
 
-download_images()
+
+

@@ -53,8 +53,8 @@ class VAE_interface():
             plt.subplot(num_rows, num_cols, num_cols + col + 1)
             plt.imshow(batch[col])
             plt.subplot(num_rows, num_cols, col + 1)
-            p_img = cv2.cvtColor((pred[col] * 255).astype(np.uint8), cv2.COLOR_BGR2RGB)
-            plt.imshow(p_img)
+
+            plt.imshow((pred[col] * 255).astype(np.uint8))
             plt.axis("off")
         plt.tight_layout()
         plt.savefig(f"output_images/generated_plot_epoch-{epoch}.png")
@@ -81,8 +81,7 @@ class VAE_interface():
         print('starting at:', epoch_start)
         checkpoint.restore(manager.latest_checkpoint)
         bar = tf.keras.utils.Progbar(file_count * dataset_repetitions / batch_size - 1)
-        for epoch, batch in enumerate(dataset):
-            print(epoch)
+
         for epoch, batch in enumerate(dataset):
             loss, x_recon = self.train_step(batch)
             loss = np.array(loss)

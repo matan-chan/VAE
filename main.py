@@ -1,50 +1,46 @@
-import cv2
-
-from config import img_size, dataset_repetitions, batch_size
+from config import dataset_repetitions, batch_size
+from model import log_normal_pdf, VAE
 from keras.optimizers import Adam
-from keras.callbacks import TensorBoard
-from data import prepare_dataset, preprocess_image, get_dataframe
+from data import prepare_dataset
 import matplotlib.pyplot as plt
-from PIL import Image
-from loss import vae_loss
-from model import encoder, decoder, log_normal_pdf, VAE
 from config import save_every
-import tensorflow as tf
-import numpy as np
-import time
-import cv2
 import os
 
-from tensorflow.python.client import device_lib
-
-# print(device_lib.list_local_devices())
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+from tensorflow import Tensor
+from numpy import ndarray
+from typing import Tuple
+import tensorflow as tf
+import numpy as np
 
 file_count = sum(len(files) for _, _, files in os.walk(r'data/images'))
 
 
-class VAE_interface():
+class VAEInterface:
     def __init__(self):
         self.model = VAE()
         self.optimizer = Adam(learning_rate=1e-4)
 
-    def compute_loss(self, x):
+    def compute_loss(self, x: ndarray) -> Tuple[Tensor, Tensor]:
         mean, logvar = self.model.encode(x)
         z = self.model.reparameterize(mean, logvar)
         x_logit = self.model.decode(z)
         cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_logit, labels=x)
-        logpx_z = -tf.reduce_sum(cross_ent, axis=[1, 2, 3])
-        logpz = log_normal_pdf(z, 0., 0.)
-        logqz_x = log_normal_pdf(z, mean, logvar)
-        return -tf.reduce_mean(logpx_z + logpz - logqz_x), x_logit
+        log_px_z = -tf.reduce_sum(cross_ent, axis=[1, 2, 3])
+        log_pz = log_normal_pdf(z, 0., 0.)
+        log_qz_x = log_normal_pdf(z, mean, logvar)
+        loss = -tf.reduce_mean(log_px_z + log_pz - log_qz_x)
+        return loss, x_logit
 
-    def train_step(self, images):
+    def train_step(self, images: ndarray) -> Tuple[Tensor, Tensor]:
         with tf.GradientTape() as tape:
-            loss, preds = self.compute_loss(images)
+            loss, predicts = self.compute_loss(images)
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
-        return loss, preds
+        return loss, predicts
 
-    def plot_images(self, batch, pred, epoch=None):
+    def plot_images(self, batch: ndarray, predicts: Tensor, epoch: bool = None) -> None:
+        predicts = np.array(tf.sigmoid(predicts))
         num_cols = len(batch)
         num_rows = 2
         plt.figure(figsize=(num_cols * 2.0, num_rows * 2.0))
@@ -54,18 +50,21 @@ class VAE_interface():
             plt.imshow(batch[col])
             plt.subplot(num_rows, num_cols, col + 1)
 
-            plt.imshow((pred[col] * 255).astype(np.uint8))
+            plt.imshow((predicts[col] * 255).astype(np.uint8))
             plt.axis("off")
         plt.tight_layout()
         plt.savefig(f"output_images/generated_plot_epoch-{epoch}.png")
 
-    def convert_to_h5(self):
-        checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, encoder=self.encoder, decoder=self.decoder,
-                                         vae=self.vae)
-        manager = tf.train.CheckpointManager(checkpoint, directory='models/', max_to_keep=3)
-        self.encoder.save('models/encoder_model.h5')
-        self.decoder.save('models/decoder_model.h5')
-        self.vae.save('models/vae_model.h5')
+    def generate_image(self, images: ndarray) -> None:
+        mean, log_var = self.model.encode(images)
+        z = self.model.reparameterize(mean, log_var)
+        predicts = self.model.decode(z)
+        predicts = np.array(tf.sigmoid(predicts))
+        plt.imshow((predicts * 255).astype(np.uint8))
+
+    def convert_to_h5(self) -> None:
+        self.model.encoder.save('models/encoder_model.h5')
+        self.model.decoder.save('models/decoder_model.h5')
 
     def train(self):
         dataset = prepare_dataset(True)
@@ -77,7 +76,7 @@ class VAE_interface():
 
         epoch_start = int(
             manager.latest_checkpoint.split(sep='ckpt-')[
-                -1]) * save_every if manager.latest_checkpoint else 1
+                -1]) * save_every + 1 if manager.latest_checkpoint else 1
         print('starting at:', epoch_start)
         checkpoint.restore(manager.latest_checkpoint)
         bar = tf.keras.utils.Progbar(file_count * dataset_repetitions / batch_size - 1)
@@ -88,10 +87,6 @@ class VAE_interface():
 
             bar.update(epoch + epoch_start, values=[("loss", loss)])
             if (epoch + epoch_start) % save_every == 0:
-                self.plot_images(batch, np.array(x_recon), epoch + epoch_start)
+                self.plot_images(batch, x_recon, epoch + epoch_start)
 
                 manager.save()
-
-
-g = VAE_interface()
-g.train()

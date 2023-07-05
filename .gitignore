@@ -1,3 +1,6 @@
 # pycharm
 .idea
+models/*
 data/*
+output_images/*
+!output_images/generated_plot_epoch-158000.png

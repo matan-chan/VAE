@@ -1,33 +1,41 @@
-# ddim-cars
+# VAE with tensorflow
 
-image generator which generate cars images!
-
+variational autoencoder implemnted with tesorflow compress images with shape of 256x256x3 into an array of 3000
 
 ## usage
-```python
-from main import Diffusion
-d = Diffusion()
-d.plot_images()
-```
-the output image will be saved in the `new_predictions` folder
 
+```python
+from model import VAE
+
+vae = VAE(True)
+
+z = vae.compress(images)  # compress the image to array of size 3000
+# do stuff with z
+z = vae.expand(z)  # back to image with shape 256x256x3
+
+```
 
 ## training:
-first run the `process_data()` function
+
+first run the `download_images()` function
 then call the `train()` function.
+
 ```python
-from main import Diffusion
-d = Diffusion()
-d.train()
+from main import VAEInterface
+
+v = VAEInterface()
+v.train()
 ```
+
 ## example:
+
 <p align="left">
-  <img width="500" src="https://github.com/matan-chan/ddim-cars/blob/main/output_images/generated_plot_epoch-50250.png?raw=true">
+  <img width="800" src="https://github.com/matan-chan/ddim-cars/blob/main/!output_images/generated_plot_epoch-150000.png?raw=true">
 </p>
 
 ## data:
-[Cars Dataset][website]
+
+[LAION5B][website]
 
 
-
-[website]: http://ai.stanford.edu/~jkrause/cars/car_dataset.html
+[website]: https://laion.ai/blog/laion-5b/

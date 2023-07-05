@@ -30,7 +30,7 @@ v.train()
 ## example:
 
 <p align="left">
-  <img width="800" src="https://github.com/matan-chan/ddim-cars/blob/main/!output_images/generated_plot_epoch-150000.png?raw=true">
+  <img width="800" src="https://github.com/matan-chan/VAE/blob/main/output_images/generated_plot_epoch-158000.png?raw=true">
 </p>
 
 ## data:

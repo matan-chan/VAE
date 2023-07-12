@@ -41,7 +41,7 @@ def read_image_from_disk(data: Tensor) -> Tensor:
         img = tf.cast(img, tf.float32)
         img = tf.clip_by_value(img / 255.0, 0.0, 1.0)
         return img
-    except :
+    except:
         img = np.zeros((img_size, img_size, 3))
         return tf.cast(img, tf.float32)
 
@@ -83,9 +83,13 @@ def download_images(start_in_batch: int = 0, start_name: int = 0) -> None:
         if i > start_in_batch:
             image, success = read_img(url)
             if success:
-                im_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                im_rgb = np.array(preprocess_image(im_rgb, False))
-                cv2.imwrite(f'data/images/{i + start_name}.jpg', im_rgb)
+                try:
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    im_rgb = np.array(preprocess_image(image, False))
+
+                    cv2.imwrite(f'data/images/{i + start_name}.jpg', im_rgb)
+                except:
+                    continue
 
 
 def prepare_dataset(downloaded: bool = False):
@@ -108,3 +112,6 @@ def clean_last_train():
     for dir in dirs:
         for f in os.listdir(dir):
             os.remove(os.path.join(dir, f))
+
+
+
